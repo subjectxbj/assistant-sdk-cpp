@@ -33,6 +33,7 @@ CXX = g++
 CPPFLAGS += -I/usr/local/include -pthread -I$(GOOGLEAPIS_GENS_PATH) \
 	    -I$(GRPC_SRC_PATH) -I./src/
 CXXFLAGS += -std=c++11
+CXXFLAGS += -I/sensory/include
 CXXFLAGS += -g
 # grpc_cronet is for JSON functions in gRPC library.
 ifeq ($(SYSTEM),Darwin)
@@ -42,8 +43,10 @@ LDFLAGS += -L/usr/local/lib `pkg-config --libs grpc++ grpc`       \
 else
 LDFLAGS += -L/usr/local/lib `pkg-config --libs grpc++ grpc`       \
            -lgrpc_cronet -Wl,--no-as-needed -lgrpc++_reflection   \
-           -Wl,--as-needed -lprotobuf -lpthread -ldl -lcurl
+           -Wl,--as-needed -lprotobuf -lpthread -ldl -lcurl -lsnsr -lasound
 endif
+
+LDFLAGS += -L/sensory/lib
 
 AUDIO_SRCS =
 ifeq ($(SYSTEM),Linux)
@@ -60,7 +63,7 @@ googleapis.ar: $(GOOGLEAPIS_CCS:.cc=.o)
 run_assistant.o: $(GOOGLEAPIS_ASSISTANT_CCS:.cc=.h)
 
 run_assistant: $(GOOGLEAPIS_ASSISTANT_CCS:.cc=.o) googleapis.ar \
-	$(AUDIO_SRCS:.cc=.o) ./src/audio_input_file.o ./src/json_util.o ./src/run_assistant.o
+	$(AUDIO_SRCS:.cc=.o) ./src/audio_input_file.o ./src/json_util.o ./src/run_assistant.o ./src/keyword_detect.o
 	$(CXX) $^ $(LDFLAGS) -o $@
 
 json_util_test: ./src/json_util.o ./src/json_util_test.o

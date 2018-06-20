@@ -43,6 +43,7 @@ limitations under the License.
 #include "audio_input.h"
 #include "audio_input_file.h"
 #include "json_util.h"
+#include "keyword_detect.h"
 
 
 using google::assistant::embedded::v1alpha2::EmbeddedAssistant;
@@ -51,6 +52,7 @@ using google::assistant::embedded::v1alpha2::AssistResponse;
 using google::assistant::embedded::v1alpha2::AudioInConfig;
 using google::assistant::embedded::v1alpha2::AudioOutConfig;
 using google::assistant::embedded::v1alpha2::AssistResponse_EventType_END_OF_UTTERANCE;
+using google::assistant::embedded::v1alpha2::AssistResponse_EventType_EVENT_TYPE_UNSPECIFIED;
 using google::assistant::embedded::v1alpha2::DialogStateOut_MicrophoneMode_CLOSE_MICROPHONE;
 using google::assistant::embedded::v1alpha2::DialogStateOut_MicrophoneMode_DIALOG_FOLLOW_ON;
 
@@ -156,36 +158,35 @@ bool GetCommandLineFlags(
 }
 
 AssistRequest MakeAssistRequestConfig(std::string locale){
-  AssistRequest req;
-  auto* assist_config = req.mutable_config();
+    AssistRequest req;
+    auto* assist_config = req.mutable_config();
   
-  if (locale.empty()) {
-      locale = kLanguageCode; // Default locale
-  }
-  std::cout << "Using locale " << locale << std::endl;
-  // Set the DialogStateIn of the AssistRequest
-  assist_config->mutable_dialog_state_in()->set_language_code(locale);
-  // Set the DeviceConfig of the AssistRequest
-  assist_config->mutable_device_config()->set_device_id(kDeviceInstanceId);
-  assist_config->mutable_device_config()->set_device_model_id(kDeviceModelId);
+    if (locale.empty()) {
+        locale = kLanguageCode; // Default locale
+    }
+    std::cout << "Using locale " << locale << std::endl;
+    // Set the DialogStateIn of the AssistRequest
+    assist_config->mutable_dialog_state_in()->set_language_code(locale);
+    // Set the DeviceConfig of the AssistRequest
+    assist_config->mutable_device_config()->set_device_id(kDeviceInstanceId);
+    assist_config->mutable_device_config()->set_device_model_id(kDeviceModelId);
   
-  // Set parameters for audio output
-  assist_config->mutable_audio_out_config()->set_encoding(
-    AudioOutConfig::LINEAR16);
-  assist_config->mutable_audio_out_config()->set_sample_rate_hertz(16000);
+    // Set parameters for audio output
+    assist_config->mutable_audio_out_config()->set_encoding(AudioOutConfig::LINEAR16);
+    assist_config->mutable_audio_out_config()->set_sample_rate_hertz(16000);
   
-  // Set the AudioInConfig of the AssistRequest
-  assist_config->mutable_audio_in_config()->set_encoding(
-      AudioInConfig::LINEAR16);
-  assist_config->mutable_audio_in_config()->set_sample_rate_hertz(16000);
+    // Set the AudioInConfig of the AssistRequest
+    assist_config->mutable_audio_in_config()->set_encoding(AudioInConfig::LINEAR16);
+    assist_config->mutable_audio_in_config()->set_sample_rate_hertz(16000);
   
-  return req;
+    return req;
 }
 
-int StartDialog(std::string locale,
+bool StartDialog(std::string locale,
 				std::shared_ptr<EmbeddedAssistant::Stub> assistant,
 				std::shared_ptr<CallCredentials> call_credentials,
 				std::shared_ptr<AudioOutputALSA> audio_output) {
+	bool b_cont = false;
 	// ConverseRequest Audio in
 	AssistRequest request_audio_in;
 	// ConverseResponse
@@ -196,75 +197,98 @@ int StartDialog(std::string locale,
 	// AudioOutputALSA audio_output;
 	// Start Audio Output Thread
 	audio_output->Start();
-	std::cout << std::endl << "*****PLEASE SPEAK YOUR REQUEST.";
+
 	// Begin a stream.
 	grpc::ClientContext context;
 	context.set_fail_fast(false);
 	context.set_credentials(call_credentials);
 	  
 	std::shared_ptr<ClientReaderWriter<AssistRequest, AssistResponse>>
-      stream(std::move(assistant->Assist(&context)));
+            stream(std::move(assistant->Assist(&context)));
 	  
 	// Reset Audio Input
 	audio_input.reset(new AudioInputALSA());
+
 	audio_input->AddDataListener(
 		[stream, &request_audio_in](std::shared_ptr<std::vector<unsigned char>> data) {
 			request_audio_in.set_audio_in(&((*data)[0]), data->size());
 			stream->Write(request_audio_in);
+                        std::cout << "==>AssistRequest.audio_in" << std::endl;
 		}
 	);
 	audio_input->AddStopListener([stream]() {
 		stream->WritesDone();
+                std::cout << "==>AssistRequest.audio_in END" << std::endl;
 	});
-	// Send ConverseRequest Config to Google
+
 	stream->Write(MakeAssistRequestConfig(locale));
+        std::cout << "==>AssistRequest.config" << std::endl;	
+ 
 	// Start Audio Input Thread
 	audio_input->Start();
+	std::cout << std::endl << "*****PLEASE SPEAK YOUR REQUEST:" <<std::endl;
   
 	// Start reading response
 	while (stream->Read(&response)) {  // Returns false when no more to read.
-		//std::cout << "assistant_sdk Got a response \n";
+                std::cout << "*****GET A RESPONSE" <<std::endl;
+/*
 		if (audio_input->IsRunning()) {
 			if(response.has_audio_out()) {
-				std::cout << std::endl << "*****RESPONSE RECEIVED.";
-				audio_input->Stop();
+				std::cout << "<==AssistResponse.audio_out" <<std::endl;
+	         		audio_input->Stop();
+                                b_cont = false;
 			}
 			if(response.event_type() == AssistResponse_EventType_END_OF_UTTERANCE) {
-				std::cout << std::endl << "*****END OF UTTERANCE.";
+				std::cout << "<==AssistResponse.event_type.END_OF_UTTERANCE" <<std::endl;
 				audio_input->Stop();
+                                b_cont = false;
 			}
 		}
+*/
+                std::cout << "Converstation State: " << response.dialog_state_out().conversation_state() <<std::endl;
+                if(response.event_type() == AssistResponse_EventType_END_OF_UTTERANCE) {
+                    std::cout << "<==AssistResponse.event_type.END_OF_UTTERANCE" <<std::endl;
+                    audio_input->Stop();
+                }else if (response.event_type() == AssistResponse_EventType_EVENT_TYPE_UNSPECIFIED) {
+                    std::cout << "<==AssistResponse.event_type.EVENT_TYPE_UNSPECIFIED" <<std::endl;
+                }
+ 
 		if (response.dialog_state_out().microphone_mode() == DialogStateOut_MicrophoneMode_CLOSE_MICROPHONE) {
-			std::cout << std::endl << "*****CLOSE MICROPHONE.";
+		    std::cout << "<==AssistResponse.dialog_state_out.microphone_mode.CLOSE_MICROPHONE" <<std::endl;
+                    b_cont = false;
 		}
 		else if (response.dialog_state_out().microphone_mode() == DialogStateOut_MicrophoneMode_DIALOG_FOLLOW_ON) {
-			std::cout << std::endl << "*****DIALOG FOLLOW ON.";
+		    std::cout << "<==AssistResponse.dialog_state_out.microphone_mode.DIALOG_FOLLOW_ON" <<std::endl;
+                    b_cont = true;
 		}
+                if(response.has_audio_out()) {
+                    std::cout << "<==AssistResponse.audio_out" <<std::endl;
+                }
+              
 	
 		// Playback the response audio
 		if (response.has_audio_out()) {
-			std::shared_ptr<std::vector<unsigned char>>
-				data(new std::vector<unsigned char>);
-			data->resize(response.audio_out().audio_data().length());
-			memcpy(&((*data)[0]), response.audio_out().audio_data().c_str(), response.audio_out().audio_data().length());
-			audio_output->Send(data);
+		    std::shared_ptr<std::vector<unsigned char>>
+			data(new std::vector<unsigned char>);
+		    data->resize(response.audio_out().audio_data().length());
+		    memcpy(&((*data)[0]), response.audio_out().audio_data().c_str(), response.audio_out().audio_data().length());
+		    audio_output->Send(data);
 		}
 
 		// CUSTOMIZE: render spoken request on screen
 		for (int i = 0; i < response.speech_results_size(); i++) {
-		  google::assistant::embedded::v1alpha2::SpeechRecognitionResult result =
-			  response.speech_results(i);
-		  if (verbose) {
-			std::clog << "assistant_sdk request: \n"
+		    google::assistant::embedded::v1alpha2::SpeechRecognitionResult result =response.speech_results(i);
+		    if (verbose) {
+			std::clog << "<==AssistResponse.speech_results[]: \n"
 					  << result.transcript() << " ("
 					  << std::to_string(result.stability())
 					  << ")" << std::endl;
-		  }
+		    }
 		}
 		if (response.dialog_state_out().supplemental_display_text().size() > 0) {
-		  // CUSTOMIZE: render spoken response on screen
-		  std::clog << "assistant_sdk response:" << std::endl;
-		  std::cout << response.dialog_state_out().supplemental_display_text()
+		    // CUSTOMIZE: render spoken response on screen
+		    std::clog << "<==AssistResponse.dialog_state_out.supplemental_display_text:" << std::endl;
+		    std::cout << response.dialog_state_out().supplemental_display_text()
 					<< std::endl;
 		}
 	}
@@ -273,18 +297,18 @@ int StartDialog(std::string locale,
 	// Destroy the stream
 	grpc::Status status = stream->Finish();
 	if (!status.ok()) {
-		// Report the RPC failure.
-		std::cerr << "assistant_sdk failed, error: " <<
-              status.error_message() << std::endl;
-		return -1;
+	    // Report the RPC failure.
+	    std::cerr << "assistant_sdk failed, error: " << status.error_message() << std::endl;
 	}
 	// Stop the Audio Output Thread
 	audio_output->Stop();
+        return b_cont;
 }
 
 int main(int argc, char** argv) {
   std::string audio_input_source, text_input_source, credentials_file_path, credentials_type,
               api_endpoint, locale;
+  bool b_cont = true;
   // Initialize gRPC and DNS resolvers
   // https://github.com/grpc/grpc/issues/11366#issuecomment-328595941
   grpc_init();
@@ -314,14 +338,23 @@ int main(int argc, char** argv) {
   }
 
   // Begin a stream.
+
   auto channel = CreateChannel(api_endpoint);
   std::shared_ptr<EmbeddedAssistant::Stub> assistant(
       EmbeddedAssistant::NewStub(channel));
-
   std::shared_ptr<AudioOutputALSA> audio_output(new AudioOutputALSA());
-  
-  while(1) {
-		StartDialog(locale, assistant, call_credentials, audio_output);
+
+  while(1){
+      KeywordDetect detect;
+      detect.InitSNSR();
+      detect.Start();
+      detect.Loop();
+      detect.Stop();
+      b_cont = true;
+
+      while(b_cont) {
+          b_cont = StartDialog(locale, assistant, call_credentials, audio_output);
+      }
   }
   return 0;
 }
