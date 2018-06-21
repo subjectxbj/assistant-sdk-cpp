@@ -5,7 +5,7 @@
 using namespace std;
 
 
-string SNSR_MODEL_FILE ("/spot-alexa-rpi-31000.snsr");
+string SNSR_MODEL_FILE ("/etc/sensory/spot-alexa-rpi-31000.snsr");
 
 
 static std::string getSensoryDetails(SnsrSession session, SnsrRC result) {
