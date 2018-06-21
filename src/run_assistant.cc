@@ -181,6 +181,13 @@ AssistRequest MakeAssistRequestConfig(std::string locale){
   
     return req;
 }
+void PlaySoundCue(const char* file) {
+    char command[1024];
+    
+    sprintf(command, "aplay /etc/sounds/%s", file);
+    system(command);
+  
+}
 
 bool StartDialog(std::string locale,
 				std::shared_ptr<EmbeddedAssistant::Stub> assistant,
@@ -223,6 +230,7 @@ bool StartDialog(std::string locale,
 
 	stream->Write(MakeAssistRequestConfig(locale));
         std::cout << "==>AssistRequest.config" << std::endl;	
+        PlaySoundCue("ful_ui_wakesound.wav");
  
 	// Start Audio Input Thread
 	audio_input->Start();
@@ -249,6 +257,7 @@ bool StartDialog(std::string locale,
                 if(response.event_type() == AssistResponse_EventType_END_OF_UTTERANCE) {
                     std::cout << "<==AssistResponse.event_type.END_OF_UTTERANCE" <<std::endl;
                     audio_input->Stop();
+                    PlaySoundCue("ful_ui_endpointing.wav");
                 }else if (response.event_type() == AssistResponse_EventType_EVENT_TYPE_UNSPECIFIED) {
                     std::cout << "<==AssistResponse.event_type.EVENT_TYPE_UNSPECIFIED" <<std::endl;
                 }
