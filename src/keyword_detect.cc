@@ -5,7 +5,7 @@
 using namespace std;
 
 
-string SNSR_MODEL_FILE ("/etc/sensory/spot-alexa-rpi-31000.snsr");
+string SNSR_MODEL_FILE ("/etc/sensory/wakeup-word.snsr");
 
 
 static std::string getSensoryDetails(SnsrSession session, SnsrRC result) {
@@ -190,7 +190,7 @@ SnsrRC KeywordDetect::keyWordDetectedCallback(SnsrSession s, const char* key, vo
     }
     std:cout << "KeywordDetect::keyWordDetectedCallback()" << " keyword: " << keyword << std::endl; 
 
-    if (strcmp(keyword, "alexa") == 0)
+    if (strcmp(keyword, "alexa") == 0 || strcmp(keyword, "ok-google") == 0)
     {
         KeywordDetect *p = (KeywordDetect*)userData;
         p->m_isRunning = false;
