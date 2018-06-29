@@ -277,6 +277,13 @@ bool StartDialog(std::string locale,
 			memcpy(&((*data)[0]), response.audio_out().audio_data().c_str(), response.audio_out().audio_data().length());
 			audio_output->Send(data);
 		}
+		// Device Action
+		if (response.has_device_action()) {
+			std::cout << "<==AssistResponse.device_action" <<std::endl;
+			std::string action_json;
+			action_json = response.device_action().device_request_json();
+			std::cout << action_json <<std::endl;
+		}
 
 		// CUSTOMIZE: render spoken request on screen
 		for (int i = 0; i < response.speech_results_size(); i++) {
