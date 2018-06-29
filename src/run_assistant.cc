@@ -224,7 +224,7 @@ bool StartDialog(std::string locale,
 		[stream, &request_audio_in](std::shared_ptr<std::vector<unsigned char>> data) {
 			request_audio_in.set_audio_in(&((*data)[0]), data->size());
 			stream->Write(request_audio_in);
-			std::cout << "==>AssistRequest.audio_in" << std::endl;
+			//std::cout << "==>AssistRequest.audio_in" << std::endl;
 		}
 	);
 	audio_input->AddStopListener([stream]() {
@@ -244,10 +244,11 @@ bool StartDialog(std::string locale,
 	while (stream->Read(&response)) {  // Returns false when no more to read.
 	
 	    std::string conversationState = response.dialog_state_out().conversation_state();
-		std::cout << "<==Converstation State: " << conversationState <<std::endl;
+		
 		
 		if (conversationState.size())
 		{
+			std::cout << "<==Converstation State: " << conversationState <<std::endl;
 			mConversationState = conversationState;
 		}
 		
@@ -256,7 +257,7 @@ bool StartDialog(std::string locale,
 			audio_input->Stop();
 			PlaySoundCue("ful_ui_endpointing.wav");
 		}else if (response.event_type() == AssistResponse_EventType_EVENT_TYPE_UNSPECIFIED) {
-			std::cout << "<==AssistResponse.event_type.EVENT_TYPE_UNSPECIFIED" <<std::endl;
+			//std::cout << "<==AssistResponse.event_type.EVENT_TYPE_UNSPECIFIED" <<std::endl;
 		}
  
 		if (response.dialog_state_out().microphone_mode() == DialogStateOut_MicrophoneMode_CLOSE_MICROPHONE) {
@@ -270,7 +271,7 @@ bool StartDialog(std::string locale,
 	
 		// Playback the response audio
 		if (response.has_audio_out()) {
-			std::cout << "<==AssistResponse.audio_out" <<std::endl;
+			//std::cout << "<==AssistResponse.audio_out" <<std::endl;
 			std::shared_ptr<std::vector<unsigned char>>
 			data(new std::vector<unsigned char>);
 			data->resize(response.audio_out().audio_data().length());

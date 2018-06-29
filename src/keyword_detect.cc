@@ -238,7 +238,7 @@ void KeywordDetect::Loop() {
       } else if (pcm_read_ret == -ESTRPIPE) {
           std::cerr << "KeywordDetect::Loop -ESTRPIPE" <<std::endl;
       } else if (pcm_read_ret > 0) {
-          std::cout << "KeywordDetect::Loop read audio data " << pcm_read_ret << "bytes" << std::endl;
+          //std::cout << "KeywordDetect::Loop read audio data " << pcm_read_ret << "bytes" << std::endl;
           audio_data->resize(kBytesPerFrame * pcm_read_ret);
           AnalyzeAudio(audio_data);
           snsrClearRC(m_session);
