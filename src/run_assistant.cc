@@ -44,6 +44,8 @@ limitations under the License.
 #include "audio_input_file.h"
 #include "json_util.h"
 #include "keyword_detect.h"
+#include "state_manager.h"
+#include "signal.h"
 
 
 using google::assistant::embedded::v1alpha2::EmbeddedAssistant;
@@ -64,11 +66,21 @@ using grpc::ClientReaderWriter;
 static const std::string kCredentialsTypeUserAccount = "USER_ACCOUNT";
 static const std::string kALSAAudioInput = "ALSA_INPUT";
 static const std::string kLanguageCode = "en-US";
-static const std::string kDeviceInstanceId = "default";
-static const std::string kDeviceModelId = "default";
+static const std::string kDeviceInstanceId = "test";
+static const std::string kDeviceModelId = "gigaspire-241cc-axu-99y67a";
+
+static const std::string kUbusSockFd = "/tmp/ubus.sock";
 
 bool verbose = false;
 std::string mConversationState;
+
+AssistantStateManager mStateManager;
+
+void signal_handler(int signal) {
+    mStateManager.init(kUbusSockFd); 
+    std::cout << "Shut down google assistant" << std::endl;
+    abort();
+}
 
 // Creates a channel to be connected to Google.
 std::shared_ptr<Channel> CreateChannel(const std::string& host) {
@@ -206,7 +218,8 @@ bool StartDialog(std::string locale,
 	std::unique_ptr<AudioInput> audio_input;
 	// AudioOutput
 	// AudioOutputALSA audio_output;
-	// Start Audio Output Thread
+	// Start Audio Output Thread. start audio output earlier, so that TX path can lock to the RX lock. 
+        // If we start audio output when there is audio output in the response, TX path will fail to lock to the RX lock.
 	audio_output->Start();
 
 	// Begin a stream.
@@ -234,10 +247,12 @@ bool StartDialog(std::string locale,
 
 	stream->Write(MakeAssistRequestConfig(locale));
 	std::cout << "==>AssistRequest.config" << std::endl;	
-	PlaySoundCue("ful_ui_wakesound.wav");
+	//PlaySoundCue("ful_ui_wakesound.wav");
+        //mStateManager.changeState(AssistantStateManager::State::LISTENING);
  
 	// Start Audio Input Thread
 	audio_input->Start();
+        mStateManager.changeState(AssistantStateManager::State::LISTENING);
 	std::cout << std::endl << "*****PLEASE SPEAK YOUR REQUEST:" <<std::endl;
   
 	// Start reading response
@@ -255,7 +270,8 @@ bool StartDialog(std::string locale,
 		if(response.event_type() == AssistResponse_EventType_END_OF_UTTERANCE) {
 			std::cout << "<==AssistResponse.event_type.END_OF_UTTERANCE" <<std::endl;
 			audio_input->Stop();
-			PlaySoundCue("ful_ui_endpointing.wav");
+			//PlaySoundCue("ful_ui_endpointing.wav");
+                        mStateManager.changeState(AssistantStateManager::State::THINKING);
 		}else if (response.event_type() == AssistResponse_EventType_EVENT_TYPE_UNSPECIFIED) {
 			//std::cout << "<==AssistResponse.event_type.EVENT_TYPE_UNSPECIFIED" <<std::endl;
 		}
@@ -271,6 +287,7 @@ bool StartDialog(std::string locale,
 	
 		// Playback the response audio
 		if (response.has_audio_out()) {
+			mStateManager.changeState(AssistantStateManager::State::SPEAKING);                        
 			//std::cout << "<==AssistResponse.audio_out" <<std::endl;
 			std::shared_ptr<std::vector<unsigned char>>
 			data(new std::vector<unsigned char>);
@@ -321,6 +338,7 @@ int main(int argc, char** argv) {
 	bool b_cont = true;
 	// Initialize gRPC and DNS resolvers
 	// https://github.com/grpc/grpc/issues/11366#issuecomment-328595941
+        signal(SIGINT, signal_handler);
 	grpc_init();
 	if (!GetCommandLineFlags(argc, argv, &audio_input_source, &text_input_source,
 		&credentials_file_path, &credentials_type,
@@ -353,8 +371,11 @@ int main(int argc, char** argv) {
 	std::shared_ptr<EmbeddedAssistant::Stub> assistant(
 		EmbeddedAssistant::NewStub(channel));
 	std::shared_ptr<AudioOutputALSA> audio_output(new AudioOutputALSA());
+        
+        mStateManager.init(kUbusSockFd);
 
 	while(1){
+                mStateManager.changeState(AssistantStateManager::State::IDLE);
 		KeywordDetect detect;
 		detect.InitSNSR();
 		detect.Start();
