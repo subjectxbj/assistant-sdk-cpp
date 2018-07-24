@@ -2,6 +2,8 @@
 #include <string>
 #include <map>
 #include <iostream>
+#include <thread>
+
 extern "C" {
 #include <unistd.h>
 
@@ -59,7 +61,16 @@ static int ubus_call(struct ubus_context *ctx, const char *path, const char *met
 void AssistantStateManager::changeState(AssistantStateManager::State state){
     m_state = state;
     updateLED(state);
-    playSoundCue(state);
+    
+    act_thread.reset(new std::thread([this, state]() {
+        if (state == AssistantStateManager::State::LISTENING) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        }
+        playSoundCue(state);
+    }));
+    
+    act_thread->join();
+    act_thread.reset(nullptr);
 }
 void AssistantStateManager::init(std::string ubus_sock){
     m_ubus_sock = ubus_sock;

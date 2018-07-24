@@ -83,7 +83,7 @@ std::unique_ptr<std::thread> AudioInputALSA::GetBackgroundThread() {
             new std::vector<unsigned char>(kFramesPerPacket * kBytesPerFrame));
       int pcm_read_ret = snd_pcm_readi(pcm_handle, &(*audio_data.get())[0], kFramesPerPacket);
       if (pcm_read_ret == -EAGAIN) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
       } else if (pcm_read_ret < 0) {
         std::cerr << "AudioInputALSA snd_pcm_readi returned " << pcm_read_ret << std::endl;
         break;

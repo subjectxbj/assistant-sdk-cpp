@@ -1,4 +1,6 @@
 #include <string>
+#include <thread>
+#include <mutex>
 
 class AssistantStateManager {
 public:
@@ -18,4 +20,5 @@ private:
     void playSoundCue(State state);
     State m_state;
     std::string m_ubus_sock;
+    std::unique_ptr<std::thread> act_thread;
 };
